@@ -5,6 +5,7 @@
   opinionated."
   (:require
    [clojure.test :as test :refer [assert-expr]]
+   [cider.nrepl.middleware.util.test :as util.test]
    [lambdaisland.deep-diff :as dd]))
 
 ;; From pjstadig/humane-test-output
@@ -35,11 +36,3 @@
 ;; See: https://github.com/clojure-emacs/cider-nrepl/pull/478#pullrequestreview-90616379
 (defmethod assert-expr 'clojure.core/= [msg [_ expected & more]]
   (=-body msg expected more))
-
-(defn diffs-result
-  "Convert diffs data to form appropriate for transport."
-  [diffs]
-  (let [dd-pprint-str #(with-out-str (dd/pretty-print %))]
-    (map (fn [[a diff]]
-           [(dd-pprint-str a) (dd-pprint-str diff)])
-         diffs)))

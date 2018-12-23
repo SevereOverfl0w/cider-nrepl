@@ -5,9 +5,9 @@
    [cider.nrepl.middleware.stacktrace :as st]
    [cider.nrepl.middleware.test.extensions :as extensions]
    [cider.nrepl.middleware.util.coerce :as util.coerce]
+   [cider.nrepl.middleware.util.test :as util.test]
    [clojure.test :as test]
    [clojure.walk :as walk]
-   [lambdaisland.deep-diff :as dd]
    [orchard.misc :as u]
    [orchard.query :as query]))
 
@@ -73,25 +73,24 @@
 (defn test-result
   "Transform the result of a test assertion. Append ns, var, assertion index,
   and 'testing' context. Retain any exception. Pretty-print expected/actual."
-  [ns v m]
+  [ns v m printer]
   (let [{:keys [actual diffs expected fault]
          t :type} m
         c (when (seq test/*testing-contexts*) (test/testing-contexts-str))
         i (count (get-in (@current-report :results) [ns (:name (meta v))]))
-        gen-input (:gen-input @current-report)
-        dd-pprint-str #(with-out-str (dd/pretty-print %))]
+        gen-input (:gen-input @current-report)]
     ;; Errors outside assertions (faults) do not return an :expected value.
     ;; Type :fail returns :actual value. Type :error returns :error and :line.
     (merge (dissoc m :expected :actual)
            {:ns ns, :var (:name (meta v)), :index i, :context c}
            (when (and (#{:fail :error} t) (not fault))
-             {:expected (dd-pprint-str expected)})
+             {:expected (util.test/pprint-str expected printer)})
            (when (and (#{:fail} t) gen-input)
-             {:gen-input (dd-pprint-str gen-input)})
+             {:gen-input (util.test/pprint-str gen-input printer)})
            (when (#{:fail} t)
-             {:actual (dd-pprint-str actual)})
+             {:actual (util.test/pprint-str actual printer)})
            (when diffs
-             {:diffs (extensions/diffs-result diffs)})
+             {:diffs (util.test/diffs-result diffs printer)})
            (when (#{:error} t)
              (let [e actual
                    f (or (:test (meta v)) @v)] ; test fn or deref'ed fixture
@@ -130,6 +129,8 @@
   [m]
   (swap! current-report update-in [:summary :var] inc))
 
+(def ^:dynamic *deep-diff-printer* nil)
+
 (defn- report-final-status
   [{:keys [type] :as m}]
   (let [ns (ns-name (get m :ns (:testing-ns @current-report)))
@@ -140,7 +141,7 @@
                 (update-in [:summary type] (fnil inc 0))
                 (update-in [:results ns (:name (meta v))]
                            (fnil conj [])
-                           (test-result ns v m))
+                           (test-result ns v m *deep-diff-printer*))
                 (assoc :gen-input nil)))))
 
 (defmethod report :pass
@@ -230,8 +231,9 @@
   "If the namespace object defines a function named `test-ns-hook`, call that.
   Otherwise, test the specified vars. On completion, return a map of test
   results."
-  [ns vars]
-  (binding [test/report report]
+  [ns vars printer]
+  (binding [*deep-diff-printer* printer
+            test/report report]
     (test/do-report {:type :begin-test-ns, :ns ns})
     (if-let [test-hook (ns-resolve ns 'test-ns-hook)]
       (test-hook)
@@ -241,12 +243,12 @@
 
 (defn test-var-query
   "Call `test-ns` for each var found via var-query."
-  [var-query]
+  [var-query printer]
   (report-reset!)
   (doseq [[ns vars] (group-by
                      (comp :ns meta)
                      (query/vars var-query))]
-    (test-ns ns vars))
+    (test-ns ns vars printer))
   @current-report)
 
 (defn test-nss
@@ -254,12 +256,12 @@
   symbols and values are var symbols to be tested in that namespace (or `nil`
   to test all vars). Symbols are first resolved to their corresponding
   objects."
-  [m]
+  [m printer]
   (report-reset!)
   (doseq [[ns vars] m]
     (->> (map (partial ns-resolve ns) vars)
          (filter identity)
-         (test-ns (the-ns ns))))
+         (test-ns (the-ns ns) printer)))
   @current-report)
 
 ;;; ## Middleware
@@ -301,7 +303,7 @@
                        (assoc-in [:ns-query :has-tests?] true)
                        (assoc :test? true)
                        (util.coerce/var-query)
-                       test-var-query
+                       (test-var-query (util.test/printer msg))
                        stringify-msg)]
         (reset! results (:results report))
         (t/send transport (response-for msg (u/transform-value report))))
@@ -338,7 +340,7 @@
                               vars (distinct (map :var problems))]
                           (if (seq vars) (assoc ret ns vars) ret)))
                       {} @results)
-          report (test-nss nss)]
+          report (test-nss nss (util.test/printer msg))]
       (reset! results (:results report))
       (t/send transport (response-for msg (u/transform-value report))))
     (t/send transport (response-for msg :status :done))))
