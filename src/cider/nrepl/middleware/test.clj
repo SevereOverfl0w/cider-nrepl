@@ -79,7 +79,7 @@
         c (when (seq test/*testing-contexts*) (test/testing-contexts-str))
         i (count (get-in (@current-report :results) [ns (:name (meta v))]))
         gen-input (:gen-input @current-report)
-        dd-pprint-str  #(with-out-str (dd/pretty-print %))]
+        dd-pprint-str #(with-out-str (dd/pretty-print %))]
     ;; Errors outside assertions (faults) do not return an :expected value.
     ;; Type :fail returns :actual value. Type :error returns :error and :line.
     (merge (dissoc m :expected :actual)
