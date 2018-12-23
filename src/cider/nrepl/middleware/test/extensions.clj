@@ -4,10 +4,8 @@
   These are kept in a separate namespace because they are, by definition,
   opinionated."
   (:require
-   [clojure.data :as data]
-   [clojure.pprint :as pp]
-   [lambdaisland.deep-diff :as dd]
-   [clojure.test :as test :refer [assert-expr]]))
+   [clojure.test :as test :refer [assert-expr]]
+   [lambdaisland.deep-diff :as dd]))
 
 ;; From pjstadig/humane-test-output
 ;; https://github.com/pjstadig/humane-test-output

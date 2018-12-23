@@ -2,15 +2,14 @@
   "Test execution, reporting, and inspection"
   {:author "Jeff Valk"}
   (:require
+   [cider.nrepl.middleware.stacktrace :as st]
    [cider.nrepl.middleware.test.extensions :as extensions]
    [cider.nrepl.middleware.util.coerce :as util.coerce]
-   [clojure.pprint :as pp]
    [clojure.test :as test]
    [clojure.walk :as walk]
-   [orchard.misc :as u]
-   [orchard.query :as query]
    [lambdaisland.deep-diff :as dd]
-   [cider.nrepl.middleware.stacktrace :as st]))
+   [orchard.misc :as u]
+   [orchard.query :as query]))
 
 (if (find-ns 'clojure.tools.nrepl)
   (require
@@ -80,8 +79,7 @@
         c (when (seq test/*testing-contexts*) (test/testing-contexts-str))
         i (count (get-in (@current-report :results) [ns (:name (meta v))]))
         gen-input (:gen-input @current-report)
-        dd-pprint-str  #(with-out-str (dd/pretty-print %))
-        pprint-str #(with-out-str (pp/pprint %))]
+        dd-pprint-str  #(with-out-str (dd/pretty-print %))]
     ;; Errors outside assertions (faults) do not return an :expected value.
     ;; Type :fail returns :actual value. Type :error returns :error and :line.
     (merge (dissoc m :expected :actual)
